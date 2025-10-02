@@ -1,10 +1,10 @@
+import { Button } from './components/ui/button';
+
 const App = () => {
 	return (
 		<div className='text-base'>
-			Lorem ipsum dolor sit amet consectetur adipisicing elit. Voluptatem
-			impedit adipisci ad ab asperiores voluptas tenetur, atque repellat
-			labore earum veritatis eius sed error ipsa architecto voluptatum
-			blanditiis dolores. Delectus!
+			<h1 className='font-bold'>Habit Anchor</h1>
+			<Button>Button</Button>
 		</div>
 	);
 };
