@@ -19,7 +19,26 @@ export default defineConfig({
 			'https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap',
 		]),
 		qrcode(),
-		VitePWA({ registerType: 'autoUpdate' }),
+		VitePWA({
+			registerType: 'autoUpdate',
+			workbox: {
+				maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit
+				globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+				runtimeCaching: [
+					{
+						urlPattern: /^https:\/\/.*\.json$/,
+						handler: 'NetworkFirst',
+						options: {
+							cacheName: 'bible-data-cache',
+							expiration: {
+								maxEntries: 10,
+								maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+							},
+						},
+					},
+				],
+			},
+		}),
 	],
 	resolve: {
 		alias: {
