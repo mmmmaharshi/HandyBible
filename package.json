@@ -1,5 +1,6 @@
 {
-	"name": "habit-anchor",
+	"name": "handybible",
+	"description": "A modern, seamless Bible reading app.",
 	"private": true,
 	"version": "0.0.0",
 	"type": "module",
