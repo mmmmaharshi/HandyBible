@@ -12,46 +12,46 @@ import {
 } from './components/ui/select';
 
 const App = () => {
-	const [bibleDataState, setBibleDataState] = useState(() => {
-		const BIBLE_STORAGE_KEY = 'kjv_bible_data';
-		const storedBible = localStorage.getItem(BIBLE_STORAGE_KEY);
+	const BIBLE_STORAGE_KEY = 'kjv_bible_data';
 
+	const [bibleDataState, setBibleDataState] = useState(() => {
+		const storedBible = localStorage.getItem(BIBLE_STORAGE_KEY);
 		if (storedBible) {
 			try {
 				return JSON.parse(storedBible);
-			} catch (error) {
-				console.warn('Failed to parse stored Bible data:', error);
+			} catch {
 				return bibleData;
 			}
 		}
-
 		return bibleData;
 	});
 
 	const books = Object.keys(bibleDataState);
 
 	useEffect(() => {
-		const BIBLE_STORAGE_KEY = 'kjv_bible_data';
 		const storedBible = localStorage.getItem(BIBLE_STORAGE_KEY);
-
 		if (!storedBible) {
-			try {
-				localStorage.setItem(BIBLE_STORAGE_KEY, JSON.stringify(bibleData));
-				setBibleDataState(bibleData);
-				console.log('Bible data saved to localStorage');
-			} catch (error) {
-				console.warn('Failed to save Bible data to localStorage:', error);
-			}
+			localStorage.setItem(BIBLE_STORAGE_KEY, JSON.stringify(bibleData));
+			setBibleDataState(bibleData);
 		}
 	}, []);
 
-	const [selectedBook, setSelectedBook] = useState<string | null>(() => {
+	// Default to first book/chapter if nothing saved
+	const [selectedBook, setSelectedBook] = useState<string>(() => {
 		const saved = localStorage.getItem('selectedBook');
-		return saved || books[0] || null;
+		return saved || books[0] || '';
 	});
-	const [selectedChapter, setSelectedChapter] = useState<string | null>(() => {
+
+	const chapters = useMemo(() => {
+		if (!selectedBook || !bibleDataState[selectedBook]) return [];
+		return Object.keys(bibleDataState[selectedBook]).sort(
+			(a, b) => Number(a) - Number(b)
+		);
+	}, [selectedBook, bibleDataState]);
+
+	const [selectedChapter, setSelectedChapter] = useState<string>(() => {
 		const saved = localStorage.getItem('selectedChapter');
-		return saved || null;
+		return saved || chapters[0] || '';
 	});
 
 	const [currentVerses, setCurrentVerses] = useState<{
@@ -62,32 +62,21 @@ const App = () => {
 
 	const getVerses = useCallback(
 		(book: string, chapter: string) => {
-			if (!bibleDataState[book as keyof typeof bibleDataState]?.[chapter]) {
-				return null;
-			}
-			return bibleDataState[book as keyof typeof bibleDataState][chapter];
+			return bibleDataState[book]?.[chapter] || null;
 		},
 		[bibleDataState]
 	);
 
-	const chapters = useMemo(() => {
-		return selectedBook && selectedBook in bibleDataState
-			? Object.keys(
-					bibleDataState[selectedBook as keyof typeof bibleDataState]
-			  )
-			: [];
-	}, [selectedBook, bibleDataState]);
+	// Persist book & reset chapter if needed
+	useEffect(() => {
+		localStorage.setItem('selectedBook', selectedBook);
+		if (!selectedChapter || !chapters.includes(selectedChapter)) {
+			setSelectedChapter(chapters[0] || '');
+		}
+	}, [selectedBook, chapters, selectedChapter]);
 
 	useEffect(() => {
-		if (selectedBook) {
-			localStorage.setItem('selectedBook', selectedBook);
-		}
-	}, [selectedBook]);
-
-	useEffect(() => {
-		if (selectedChapter) {
-			localStorage.setItem('selectedChapter', selectedChapter);
-		}
+		localStorage.setItem('selectedChapter', selectedChapter);
 	}, [selectedChapter]);
 
 	useEffect(() => {
@@ -99,66 +88,62 @@ const App = () => {
 		}
 	}, [selectedBook, selectedChapter, getVerses]);
 
-	// Auto-scroll to top when verses change
+	// Auto-scroll only when chapter changes
 	useEffect(() => {
 		if (versesSectionRef.current && currentVerses) {
-			// Use requestAnimationFrame to ensure DOM is fully rendered
 			requestAnimationFrame(() => {
 				const firstVerseElement =
 					versesSectionRef.current?.querySelector('[data-verse="1"]');
-
 				if (firstVerseElement) {
-					// Account for fixed navigation (approx 80px height + padding)
 					const navOffset = 120;
-
-					// Calculate the exact position to scroll to
 					const elementTop = firstVerseElement.getBoundingClientRect().top;
 					const absoluteElementTop = elementTop + window.pageYOffset;
-					const scrollToPosition = absoluteElementTop - navOffset;
-
 					window.scrollTo({
-						top: scrollToPosition,
+						top: absoluteElementTop - navOffset,
 						behavior: 'smooth',
 					});
 				}
 			});
 		}
-	}, [currentVerses]);
+	}, [currentVerses, selectedBook, selectedChapter]); // scroll only when chapter changes
 
-	// Navigation functions
 	const goToPreviousChapter = () => {
 		if (!selectedChapter || !chapters.length) return;
-
 		const currentIndex = chapters.indexOf(selectedChapter);
 		if (currentIndex > 0) {
 			setSelectedChapter(chapters[currentIndex - 1]);
+		} else {
+			const currentBookIndex = books.indexOf(selectedBook);
+			if (currentBookIndex > 0) {
+				const prevBook = books[currentBookIndex - 1];
+				setSelectedBook(prevBook);
+				const prevBookChapters = Object.keys(bibleDataState[prevBook]).sort(
+					(a, b) => Number(a) - Number(b)
+				);
+				setSelectedChapter(prevBookChapters[prevBookChapters.length - 1]);
+			}
 		}
 	};
 
 	const goToNextChapter = () => {
 		if (!selectedChapter || !chapters.length) return;
-
 		const currentIndex = chapters.indexOf(selectedChapter);
 		if (currentIndex < chapters.length - 1) {
-			// Move to next chapter in current book
 			setSelectedChapter(chapters[currentIndex + 1]);
 		} else {
-			// Move to next book
-			const currentBookIndex = books.indexOf(selectedBook || '');
+			const currentBookIndex = books.indexOf(selectedBook);
 			if (currentBookIndex < books.length - 1) {
-				// Move to first chapter of next book
 				const nextBook = books[currentBookIndex + 1];
 				setSelectedBook(nextBook);
-				const nextBookChapters = Object.keys(
-					bibleDataState[nextBook as keyof typeof bibleDataState]
+				const nextBookChapters = Object.keys(bibleDataState[nextBook]).sort(
+					(a, b) => Number(a) - Number(b)
 				);
 				setSelectedChapter(nextBookChapters[0]);
 			} else {
-				// Reached the end - loop back to first book, first chapter
 				setSelectedBook(books[0]);
 				const firstBookChapters = Object.keys(
-					bibleDataState[books[0] as keyof typeof bibleDataState]
-				);
+					bibleDataState[books[0]]
+				).sort((a, b) => Number(a) - Number(b));
 				setSelectedChapter(firstBookChapters[0]);
 			}
 		}
@@ -173,15 +158,12 @@ const App = () => {
 							size={'icon'}
 							variant={'outline'}
 							onClick={goToPreviousChapter}
-							disabled={
-								!selectedChapter ||
-								chapters.indexOf(selectedChapter) === 0
-							}>
+							disabled={!selectedChapter && chapters.length === 0}>
 							<ChevronLeftIcon />
 						</Button>
 						<div className='w-full flex flex-col items-center gap-2'>
 							<Select
-								value={selectedBook || ''}
+								value={selectedBook}
 								onValueChange={setSelectedBook}
 								disabled={!books.length}>
 								<SelectTrigger id='book-select' className='w-full'>
@@ -189,17 +171,14 @@ const App = () => {
 								</SelectTrigger>
 								<SelectContent>
 									{books.map((book) => (
-										<SelectItem
-											key={book}
-											value={book}
-											disabled={!books.length}>
+										<SelectItem key={book} value={book}>
 											{book}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
 							<Select
-								value={selectedChapter || ''}
+								value={selectedChapter}
 								onValueChange={setSelectedChapter}
 								disabled={!selectedBook || !chapters.length}>
 								<SelectTrigger id='chapter-select' className='w-full'>
@@ -207,10 +186,7 @@ const App = () => {
 								</SelectTrigger>
 								<SelectContent>
 									{chapters.map((chapter) => (
-										<SelectItem
-											key={chapter}
-											value={chapter}
-											disabled={!selectedBook || !chapters.length}>
+										<SelectItem key={chapter} value={chapter}>
 											Chapter {chapter}
 										</SelectItem>
 									))}
