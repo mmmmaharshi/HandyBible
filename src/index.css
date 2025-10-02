@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	--font-display: 'Geist', sans-serif;
+	--font-sans: 'Instrument Sans', sans-serif;
 	--default-border-width: 0.5px;
 }
 
@@ -204,7 +204,7 @@ body {
 	}
 
 	body {
-		@apply bg-background text-foreground font-sans;
+		@apply bg-background text-foreground font-sans text-pretty;
 		letter-spacing: var(--tracking-normal);
 	}
 }
