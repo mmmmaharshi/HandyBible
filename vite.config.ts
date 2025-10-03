@@ -21,9 +21,54 @@ export default defineConfig({
 		qrcode(),
 		VitePWA({
 			registerType: 'autoUpdate',
+			includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'android-chrome-*.png'],
+			manifest: {
+				name: 'HandyBible - KJV Bible Reader',
+				short_name: 'HandyBible',
+				description: 'A beautiful, fast, and offline-capable King James Version Bible reader with advanced navigation and citation features.',
+				theme_color: '#ffffff',
+				background_color: '#ffffff',
+				display: 'standalone',
+				orientation: 'portrait',
+				scope: '/',
+				start_url: '/',
+				id: '/',
+				icons: [
+					{
+						src: 'android-chrome-192x192.png',
+						sizes: '192x192',
+						type: 'image/png',
+						purpose: 'any maskable',
+					},
+					{
+						src: 'android-chrome-512x512.png',
+						sizes: '512x512',
+						type: 'image/png',
+						purpose: 'any maskable',
+					},
+					{
+						src: 'apple-touch-icon.png',
+						sizes: '180x180',
+						type: 'image/png',
+						purpose: 'any',
+					},
+					{
+						src: 'favicon-16x16.png',
+						sizes: '16x16',
+						type: 'image/png',
+						purpose: 'any',
+					},
+					{
+						src: 'favicon-32x32.png',
+						sizes: '32x32',
+						type: 'image/png',
+						purpose: 'any',
+					},
+				],
+			},
 			workbox: {
 				maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit
-				globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+				globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
 				runtimeCaching: [
 					{
 						urlPattern: /^https:\/\/.*\.json$/,
@@ -33,6 +78,39 @@ export default defineConfig({
 							expiration: {
 								maxEntries: 10,
 								maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+							},
+						},
+					},
+					{
+						urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+						handler: 'StaleWhileRevalidate',
+						options: {
+							cacheName: 'google-fonts-cache',
+							expiration: {
+								maxEntries: 10,
+								maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+							},
+						},
+					},
+					{
+						urlPattern: /\.(?:eot|otf|ttc|ttf|woff|woff2|font\.css)$/i,
+						handler: 'StaleWhileRevalidate',
+						options: {
+							cacheName: 'static-font-assets',
+							expiration: {
+								maxEntries: 4,
+								maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+							},
+						},
+					},
+					{
+						urlPattern: /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,
+						handler: 'StaleWhileRevalidate',
+						options: {
+							cacheName: 'static-image-assets',
+							expiration: {
+								maxEntries: 64,
+								maxAgeSeconds: 24 * 60 * 60, // 24 hours
 							},
 						},
 					},
