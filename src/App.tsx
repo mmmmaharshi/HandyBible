@@ -10,11 +10,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from './components/ui/select';
+import { cn } from './lib/utils';
 
 const App = () => {
 	const BIBLE_STORAGE_KEY = 'kjv_bible_data';
-
-	const [bibleDataState, setBibleDataState] = useState(() => {
+	const [bibleDataState] = useState(() => {
 		const storedBible = localStorage.getItem(BIBLE_STORAGE_KEY);
 		if (storedBible) {
 			try {
@@ -23,43 +23,64 @@ const App = () => {
 				return bibleData;
 			}
 		}
+		localStorage.setItem(BIBLE_STORAGE_KEY, JSON.stringify(bibleData));
 		return bibleData;
 	});
 
 	const books = Object.keys(bibleDataState);
 
-	// Helper function for safe localStorage operations
-	const safeLocalStorage = useMemo(() => ({
-		getItem: (key: string): string | null => {
-			try {
-				return localStorage.getItem(key);
-			} catch (error) {
-				console.warn(`Failed to read from localStorage: ${key}`, error);
-				return null;
-			}
+	// URL helpers
+	const getParam = (key: string) =>
+		new URLSearchParams(window.location.search).get(key);
+	const setParam = (key: string, value: string) => {
+		const params = new URLSearchParams(window.location.search);
+		params.set(key, value);
+		window.history.replaceState(
+			{},
+			'',
+			`${window.location.pathname}?${params.toString()}`
+		);
+	};
+
+	const [selectedBook, setSelectedBook] = useState<string>(
+		() => getParam('book') || books[0] || ''
+	);
+	const [selectedChapter, setSelectedChapter] = useState<string>(
+		() => getParam('chapter') || '1'
+	);
+	const [selectedVerse, setSelectedVerse] = useState<string>(
+		() => getParam('verse') || '1'
+	);
+	const [currentVerses, setCurrentVerses] = useState<{
+		[verse: string]: string;
+	} | null>(null);
+
+	const versesSectionRef = useRef<HTMLElement>(null);
+	const scrollOnVerseChangeRef = useRef<boolean>(false);
+	const hasScrolledOnLoadRef = useRef<boolean>(false);
+
+	// Wrapper for setSelectedVerse to control scrolling behavior
+	const setSelectedVerseWithScroll = useCallback(
+		(verse: string, shouldScroll: boolean = false) => {
+			scrollOnVerseChangeRef.current = shouldScroll;
+			setSelectedVerse(verse);
 		},
-		setItem: (key: string, value: string): void => {
-			try {
-				localStorage.setItem(key, value);
-			} catch (error) {
-				console.warn(`Failed to write to localStorage: ${key}`, error);
-			}
-		}
-	}), []);
+		[]
+	);
 
-	useEffect(() => {
-		const storedBible = safeLocalStorage.getItem(BIBLE_STORAGE_KEY);
-		if (!storedBible) {
-			safeLocalStorage.setItem(BIBLE_STORAGE_KEY, JSON.stringify(bibleData));
-			setBibleDataState(bibleData);
-		}
-	}, [safeLocalStorage]);
+	const setSelectedVerseFromText = useCallback(
+		(verse: string) => {
+			setSelectedVerseWithScroll(verse, false); // Text clicks don't scroll
+		},
+		[setSelectedVerseWithScroll]
+	);
 
-	// Default to first book/chapter if nothing saved
-	const [selectedBook, setSelectedBook] = useState<string>(() => {
-		const saved = safeLocalStorage.getItem('selectedBook');
-		return saved || books[0] || '';
-	});
+	const setSelectedVerseFromDropdown = useCallback(
+		(verse: string) => {
+			setSelectedVerseWithScroll(verse, true); // Dropdown selections do scroll
+		},
+		[setSelectedVerseWithScroll]
+	);
 
 	const chapters = useMemo(() => {
 		if (!selectedBook || !bibleDataState[selectedBook]) return [];
@@ -68,95 +89,122 @@ const App = () => {
 		);
 	}, [selectedBook, bibleDataState]);
 
-	const [selectedChapter, setSelectedChapter] = useState<string>(() => {
-		const saved = safeLocalStorage.getItem('selectedChapter');
-		// We'll validate and fix the chapter after books and chapters are loaded
-		return saved || '1';
-	});
-
-	const [currentVerses, setCurrentVerses] = useState<{
-		[verse: string]: string;
-	} | null>(null);
-
 	const getVerses = useCallback(
-		(book: string, chapter: string) => {
-			return bibleDataState[book]?.[chapter] || null;
-		},
+		(book: string, chapter: string) =>
+			bibleDataState[book]?.[chapter] || null,
 		[bibleDataState]
 	);
 
-	const versesSectionRef = useRef<HTMLElement>(null);
+	// Update URL when book/chapter/verse changes
 	useEffect(() => {
-		if (books.length > 0 && chapters.length > 0) {
-			const savedChapter = safeLocalStorage.getItem('selectedChapter');
-			if (savedChapter && chapters.includes(savedChapter)) {
-				setSelectedChapter(savedChapter);
-			} else {
-				// If saved chapter doesn't exist in current book, use first chapter
-				setSelectedChapter(chapters[0] || '1');
-			}
+		if (selectedBook) setParam('book', selectedBook);
+	}, [selectedBook]);
+	useEffect(() => {
+		if (selectedChapter) setParam('chapter', selectedChapter);
+	}, [selectedChapter]);
+	useEffect(() => {
+		if (selectedVerse) setParam('verse', selectedVerse);
+	}, [selectedVerse]);
+
+	// Validate book (case-sensitive, falls back on typos)
+	useEffect(() => {
+		if (selectedBook && !books.includes(selectedBook)) {
+			setSelectedBook(books[0] || '');
 		}
-	}, [books.length, chapters, safeLocalStorage]);
+	}, [books, selectedBook]);
 
-	// Persist book & reset chapter to 1 when book changes
-	useEffect(() => {
-		safeLocalStorage.setItem('selectedBook', selectedBook);
-		setSelectedChapter('1');
-	}, [selectedBook, safeLocalStorage]);
-
-	// Handle chapter selection validation
+	// Validate chapter (handles typos like "1a" -> falls back to valid chapter)
 	useEffect(() => {
 		if (selectedChapter && !chapters.includes(selectedChapter)) {
 			setSelectedChapter(chapters[0] || '');
 		}
 	}, [chapters, selectedChapter]);
 
+	// Validate verse (handles typos like "1a" -> falls back to verse 1)
 	useEffect(() => {
-		safeLocalStorage.setItem('selectedChapter', selectedChapter);
-	}, [selectedChapter, safeLocalStorage]);
+		if (selectedVerse && currentVerses && !currentVerses[selectedVerse]) {
+			setSelectedVerse('1');
+		}
+	}, [currentVerses, selectedVerse]);
 
+	// Load verses for current book/chapter
 	useEffect(() => {
 		if (selectedBook && selectedChapter) {
-			const verses = getVerses(selectedBook, selectedChapter);
-			setCurrentVerses(verses);
+			setCurrentVerses(getVerses(selectedBook, selectedChapter));
 		} else {
 			setCurrentVerses(null);
 		}
 	}, [selectedBook, selectedChapter, getVerses]);
 
-	// Auto-scroll only when chapter changes
+	// Track previous chapter to reset verse 1 on chapter change
+	// Remove scrolling, only reset verse selection
+	const prevChapterRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (versesSectionRef.current && currentVerses) {
+		if (!selectedChapter) return;
+
+		// Only reset verse, do NOT scroll
+		if (
+			prevChapterRef.current &&
+			prevChapterRef.current !== selectedChapter
+		) {
+			setSelectedVerse('1'); // highlight verse 1, but no scroll
+		}
+		prevChapterRef.current = selectedChapter;
+	}, [selectedChapter, selectedBook]);
+
+	// Scroll to selected verse when changed (conditional based on source or initial load)
+	useEffect(() => {
+		if (!selectedVerse || !versesSectionRef.current) return;
+
+		// Scroll on initial load if we haven't scrolled yet and have URL params
+		const shouldScrollOnLoad =
+			!hasScrolledOnLoadRef.current &&
+			getParam('verse') &&
+			getParam('book') &&
+			getParam('chapter');
+
+		// Scroll if explicitly requested or on initial load
+		if (scrollOnVerseChangeRef.current || shouldScrollOnLoad) {
 			requestAnimationFrame(() => {
-				const firstVerseElement =
-					versesSectionRef.current?.querySelector('[data-verse="1"]');
-				if (firstVerseElement) {
-					const navOffset = 120;
-					const elementTop = firstVerseElement.getBoundingClientRect().top;
+				const el = versesSectionRef.current?.querySelector(
+					`[data-verse="${selectedVerse}"]`
+				);
+				if (el) {
+					const nav = document.querySelector('nav');
+					const navOffset = nav ? nav.getBoundingClientRect().height : 120;
+					const elementTop = el.getBoundingClientRect().top;
 					const absoluteElementTop = elementTop + window.pageYOffset;
 					window.scrollTo({
 						top: absoluteElementTop - navOffset,
 						behavior: 'smooth',
 					});
 				}
+				// Mark as scrolled on load or reset the scroll flag
+				if (shouldScrollOnLoad) {
+					hasScrolledOnLoadRef.current = true;
+				} else {
+					scrollOnVerseChangeRef.current = false;
+				}
 			});
 		}
-	}, [currentVerses, selectedBook, selectedChapter]); // scroll only when chapter changes
+	}, [selectedVerse, selectedBook, selectedChapter]);
 
 	const goToPreviousChapter = () => {
 		if (!selectedChapter || !chapters.length) return;
 		const currentIndex = chapters.indexOf(selectedChapter);
 		if (currentIndex > 0) {
 			setSelectedChapter(chapters[currentIndex - 1]);
+			setSelectedVerseWithScroll('1', true); // Scroll to verse 1 of new chapter
 		} else {
 			const currentBookIndex = books.indexOf(selectedBook);
 			if (currentBookIndex > 0) {
 				const prevBook = books[currentBookIndex - 1];
 				setSelectedBook(prevBook);
-				const prevBookChapters = Object.keys(bibleDataState[prevBook]).sort(
+				const prevChapters = Object.keys(bibleDataState[prevBook]).sort(
 					(a, b) => Number(a) - Number(b)
 				);
-				setSelectedChapter(prevBookChapters[prevBookChapters.length - 1]);
+				setSelectedChapter(prevChapters[prevChapters.length - 1]);
+				setSelectedVerseWithScroll('1', true); // Scroll to verse 1 of new chapter
 			}
 		}
 	};
@@ -166,21 +214,24 @@ const App = () => {
 		const currentIndex = chapters.indexOf(selectedChapter);
 		if (currentIndex < chapters.length - 1) {
 			setSelectedChapter(chapters[currentIndex + 1]);
+			setSelectedVerseWithScroll('1', true); // Scroll to verse 1 of new chapter
 		} else {
 			const currentBookIndex = books.indexOf(selectedBook);
 			if (currentBookIndex < books.length - 1) {
 				const nextBook = books[currentBookIndex + 1];
 				setSelectedBook(nextBook);
-				const nextBookChapters = Object.keys(bibleDataState[nextBook]).sort(
+				const nextChapters = Object.keys(bibleDataState[nextBook]).sort(
 					(a, b) => Number(a) - Number(b)
 				);
-				setSelectedChapter(nextBookChapters[0]);
+				setSelectedChapter(nextChapters[0]);
+				setSelectedVerseWithScroll('1', true); // Scroll to verse 1 of new chapter
 			} else {
 				setSelectedBook(books[0]);
-				const firstBookChapters = Object.keys(
-					bibleDataState[books[0]]
-				).sort((a, b) => Number(a) - Number(b));
-				setSelectedChapter(firstBookChapters[0]);
+				const firstChapters = Object.keys(bibleDataState[books[0]]).sort(
+					(a, b) => Number(a) - Number(b)
+				);
+				setSelectedChapter(firstChapters[0]);
+				setSelectedVerseWithScroll('1', true); // Scroll to verse 1 of new chapter
 			}
 		}
 	};
@@ -191,8 +242,8 @@ const App = () => {
 				<Card className='py-3 w-full rounded-none shadow-none'>
 					<CardContent className='flex items-center justify-between gap-5'>
 						<Button
-							size={'icon'}
-							variant={'outline'}
+							size='icon'
+							variant='outline'
 							onClick={goToPreviousChapter}
 							disabled={!selectedChapter && chapters.length === 0}>
 							<ChevronLeftIcon />
@@ -221,17 +272,33 @@ const App = () => {
 									<SelectValue placeholder='Choose a chapter' />
 								</SelectTrigger>
 								<SelectContent>
-									{chapters.map((chapter) => (
-										<SelectItem key={chapter} value={chapter}>
-											Chapter {chapter}
+									{chapters.map((ch) => (
+										<SelectItem key={ch} value={ch}>
+											Chapter {ch}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
+							<Select
+								value={selectedVerse}
+								onValueChange={setSelectedVerseFromDropdown}
+								disabled={!currentVerses}>
+								<SelectTrigger id='verse-select' className='w-full'>
+									<SelectValue placeholder='Choose a verse' />
+								</SelectTrigger>
+								<SelectContent>
+									{currentVerses &&
+										Object.keys(currentVerses).map((verse) => (
+											<SelectItem key={verse} value={verse}>
+												Verse {verse}
+											</SelectItem>
+										))}
+								</SelectContent>
+							</Select>
 						</div>
 						<Button
-							size={'icon'}
-							variant={'outline'}
+							size='icon'
+							variant='outline'
 							onClick={goToNextChapter}
 							disabled={!selectedChapter}>
 							<ChevronRightIcon />
@@ -241,10 +308,19 @@ const App = () => {
 			</nav>
 			<section
 				ref={versesSectionRef}
-				className='py-5 px-4 pb-32 flex flex-col items-start justify-start gap-2 text-base'>
+				className='py-5 pb-32 flex flex-col w-full items-start justify-start gap-2 text-base'>
 				{currentVerses &&
 					Object.entries(currentVerses).map(([verse, text]) => (
-						<p key={verse} data-verse={verse}>
+						<p
+							key={verse}
+							data-verse={verse}
+							className={cn(
+								verse === selectedVerse
+									? 'bg-primary/30 cursor-pointer'
+									: 'cursor-pointer',
+								'px-3 w-full'
+							)}
+							onClick={() => setSelectedVerseFromText(verse)}>
 							{verse}. {text}
 						</p>
 					))}
