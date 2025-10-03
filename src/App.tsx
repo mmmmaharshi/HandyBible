@@ -127,6 +127,45 @@ const App = () => {
 		}
 	}, [currentVerses, selectedVerse]);
 
+	// Auto-add citations when copying verse text
+	useEffect(() => {
+		const handleCopy = (e: Event) => {
+			const selection = window.getSelection();
+			if (!selection || selection.rangeCount === 0) return;
+
+			const range = selection.getRangeAt(0);
+			const selectedElement = range.commonAncestorContainer;
+
+			// Check if selection is within a verse element
+			const verseElement = (
+				selectedElement.nodeType === Node.TEXT_NODE
+					? selectedElement.parentElement
+					: selectedElement
+			) as HTMLElement;
+
+			if (verseElement && verseElement.hasAttribute('data-verse')) {
+				const verseNumber = verseElement.getAttribute('data-verse');
+				const citation = `${selectedBook} ${selectedChapter}:${verseNumber}`;
+
+				// Get the selected text
+				const selectedText = selection.toString().trim();
+
+				// Create enhanced text with citation
+				const enhancedText = `"${selectedText}" - ${citation}`;
+
+				// Set the clipboard data using the standard API
+				const clipboardEvent = e as { clipboardData?: { setData: (type: string, data: string) => void } };
+				if (clipboardEvent.clipboardData) {
+					clipboardEvent.clipboardData.setData('text/plain', enhancedText);
+					e.preventDefault();
+				}
+			}
+		};
+
+		document.addEventListener('copy', handleCopy);
+		return () => document.removeEventListener('copy', handleCopy);
+	}, [selectedBook, selectedChapter]);
+
 	// Load verses for current book/chapter
 	useEffect(() => {
 		if (selectedBook && selectedChapter) {
@@ -308,7 +347,7 @@ const App = () => {
 			</nav>
 			<section
 				ref={versesSectionRef}
-				className='py-5 pb-32 flex flex-col w-full items-start justify-start gap-2 text-base'>
+				className='py-5 pb-52 flex flex-col w-full items-start justify-start gap-2 text-base'>
 				{currentVerses &&
 					Object.entries(currentVerses).map(([verse, text]) => (
 						<p
