@@ -16,7 +16,7 @@ export default defineConfig({
 			},
 		}),
 		webfontDownload([
-			'https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap',
+			'https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap',
 		]),
 		qrcode(),
 		VitePWA({

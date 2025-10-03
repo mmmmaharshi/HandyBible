@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	--font-sans: 'Instrument Sans', sans-serif;
+	--font-sans: 'Schibsted Grotesk', sans-serif;
 	--default-border-width: 0.5px;
 }
 
@@ -195,7 +195,7 @@
 }
 
 body {
-	font-family: 'Geist', sans-serif;
+	font-family: 'Schibsted Grotesk', sans-serif;
 }
 
 @layer base {
