@@ -67,13 +67,18 @@ const App = () => {
 		[bibleDataState]
 	);
 
-	// Persist book & reset chapter if needed
+	// Persist book & reset chapter to 1 when book changes
 	useEffect(() => {
 		localStorage.setItem('selectedBook', selectedBook);
-		if (!selectedChapter || !chapters.includes(selectedChapter)) {
+		setSelectedChapter('1');
+	}, [selectedBook]);
+
+	// Handle chapter selection validation
+	useEffect(() => {
+		if (selectedChapter && !chapters.includes(selectedChapter)) {
 			setSelectedChapter(chapters[0] || '');
 		}
-	}, [selectedBook, chapters, selectedChapter]);
+	}, [chapters, selectedChapter]);
 
 	useEffect(() => {
 		localStorage.setItem('selectedChapter', selectedChapter);
