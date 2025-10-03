@@ -28,17 +28,36 @@ const App = () => {
 
 	const books = Object.keys(bibleDataState);
 
+	// Helper function for safe localStorage operations
+	const safeLocalStorage = useMemo(() => ({
+		getItem: (key: string): string | null => {
+			try {
+				return localStorage.getItem(key);
+			} catch (error) {
+				console.warn(`Failed to read from localStorage: ${key}`, error);
+				return null;
+			}
+		},
+		setItem: (key: string, value: string): void => {
+			try {
+				localStorage.setItem(key, value);
+			} catch (error) {
+				console.warn(`Failed to write to localStorage: ${key}`, error);
+			}
+		}
+	}), []);
+
 	useEffect(() => {
-		const storedBible = localStorage.getItem(BIBLE_STORAGE_KEY);
+		const storedBible = safeLocalStorage.getItem(BIBLE_STORAGE_KEY);
 		if (!storedBible) {
-			localStorage.setItem(BIBLE_STORAGE_KEY, JSON.stringify(bibleData));
+			safeLocalStorage.setItem(BIBLE_STORAGE_KEY, JSON.stringify(bibleData));
 			setBibleDataState(bibleData);
 		}
-	}, []);
+	}, [safeLocalStorage]);
 
 	// Default to first book/chapter if nothing saved
 	const [selectedBook, setSelectedBook] = useState<string>(() => {
-		const saved = localStorage.getItem('selectedBook');
+		const saved = safeLocalStorage.getItem('selectedBook');
 		return saved || books[0] || '';
 	});
 
@@ -50,15 +69,14 @@ const App = () => {
 	}, [selectedBook, bibleDataState]);
 
 	const [selectedChapter, setSelectedChapter] = useState<string>(() => {
-		const saved = localStorage.getItem('selectedChapter');
-		return saved || chapters[0] || '';
+		const saved = safeLocalStorage.getItem('selectedChapter');
+		// We'll validate and fix the chapter after books and chapters are loaded
+		return saved || '1';
 	});
 
 	const [currentVerses, setCurrentVerses] = useState<{
 		[verse: string]: string;
 	} | null>(null);
-
-	const versesSectionRef = useRef<HTMLElement>(null);
 
 	const getVerses = useCallback(
 		(book: string, chapter: string) => {
@@ -67,11 +85,24 @@ const App = () => {
 		[bibleDataState]
 	);
 
+	const versesSectionRef = useRef<HTMLElement>(null);
+	useEffect(() => {
+		if (books.length > 0 && chapters.length > 0) {
+			const savedChapter = safeLocalStorage.getItem('selectedChapter');
+			if (savedChapter && chapters.includes(savedChapter)) {
+				setSelectedChapter(savedChapter);
+			} else {
+				// If saved chapter doesn't exist in current book, use first chapter
+				setSelectedChapter(chapters[0] || '1');
+			}
+		}
+	}, [books.length, chapters, safeLocalStorage]);
+
 	// Persist book & reset chapter to 1 when book changes
 	useEffect(() => {
-		localStorage.setItem('selectedBook', selectedBook);
+		safeLocalStorage.setItem('selectedBook', selectedBook);
 		setSelectedChapter('1');
-	}, [selectedBook]);
+	}, [selectedBook, safeLocalStorage]);
 
 	// Handle chapter selection validation
 	useEffect(() => {
@@ -81,8 +112,8 @@ const App = () => {
 	}, [chapters, selectedChapter]);
 
 	useEffect(() => {
-		localStorage.setItem('selectedChapter', selectedChapter);
-	}, [selectedChapter]);
+		safeLocalStorage.setItem('selectedChapter', selectedChapter);
+	}, [selectedChapter, safeLocalStorage]);
 
 	useEffect(() => {
 		if (selectedBook && selectedChapter) {
