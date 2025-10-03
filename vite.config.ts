@@ -21,11 +21,16 @@ export default defineConfig({
 		qrcode(),
 		VitePWA({
 			registerType: 'autoUpdate',
-			includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'android-chrome-*.png'],
+			includeAssets: [
+				'favicon.ico',
+				'apple-touch-icon.png',
+				'android-chrome-*.png',
+			],
 			manifest: {
 				name: 'HandyBible - KJV Bible Reader',
 				short_name: 'HandyBible',
-				description: 'A beautiful, fast, and offline-capable King James Version Bible reader with advanced navigation and citation features.',
+				description:
+					'A beautiful, fast, and offline-capable King James Version Bible Reader',
 				theme_color: '#ffffff',
 				background_color: '#ffffff',
 				display: 'standalone',
@@ -39,15 +44,15 @@ export default defineConfig({
 						sizes: '512x512',
 						type: 'image/png',
 						form_factor: 'wide',
-						label: 'HandyBible Desktop View'
+						label: 'HandyBible Desktop View',
 					},
 					{
 						src: 'android-chrome-192x192.png',
 						sizes: '192x192',
 						type: 'image/png',
 						form_factor: 'narrow',
-						label: 'HandyBible Mobile View'
-					}
+						label: 'HandyBible Mobile View',
+					},
 				],
 				icons: [
 					{
